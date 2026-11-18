@@ -6,8 +6,142 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>설문 집계기</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --text: #1d1d1b;
+  --muted: #62625d;
+  --border: #d9d9d4;
+  --accent: #2f5d8a;
+  --accent-text: #ffffff;
+  --row-alt: #f1f1ee;
+  --focus: #2f5d8a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --surface: #1f1f1d;
+    --text: #ececea;
+    --muted: #a5a59f;
+    --border: #3a3a37;
+    --accent: #7fb0e0;
+    --accent-text: #10161c;
+    --row-alt: #262624;
+    --focus: #7fb0e0;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 1.1rem; margin: 0 0 8px; }
+p { margin: 0; }
+.lede { color: var(--muted); margin-bottom: 4px; }
+.privacy { color: var(--muted); font-size: 0.9rem; }
+section { margin-top: 28px; }
+label { display: block; font-weight: 600; margin-bottom: 6px; }
+.hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 8px; }
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  tab-size: 12;
+  white-space: pre;
+  overflow: auto;
+}
+textarea:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+button {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+.status { color: var(--muted); margin-bottom: 10px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+tbody tr:nth-child(even) { background: var(--row-alt); }
+tbody th { font-weight: 500; overflow-wrap: anywhere; min-width: 8em; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rules { color: var(--muted); font-size: 0.9rem; padding-left: 1.2em; margin: 8px 0 0; }
+.rules li + li { margin-top: 2px; }
+label.hint { font-weight: 400; }
+@media (max-width: 480px) {
+  th, td { padding: 8px 7px; }
+  thead th { font-size: 0.78rem; }
+  tbody th { min-width: 5em; font-size: 0.95rem; }
+}
+[hidden] { display: none !important; }
+</style>
 </head>
 <body>
+<main>
+  <header>
+    <h1>설문 집계기</h1>
+    <p class="lede">엑셀에서 머리글 줄까지 복사해 붙여넣으면 문항별 결과가 나옵니다.</p>
+    <p class="privacy">붙여넣은 내용은 이 브라우저 안에서만 계산합니다. 어디로도 보내지 않고 저장하지 않으며, 창을 닫으면 사라집니다.</p>
+  </header>
+
+  <section aria-labelledby="input-heading">
+    <h2 id="input-heading">응답 붙여넣기</h2>
+    <label for="data" class="hint">첫 줄은 머리글, 첫 열은 응답번호입니다. 응답번호 열은 집계하지 않습니다.</label>
+    <textarea id="data" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="응답번호&#9;문항1&#9;문항2&#10;1&#9;5&#9;4&#10;2&#9;3&#9;"></textarea>
+    <div class="actions">
+      <button type="button" id="sample">예시 넣기</button>
+      <button type="button" id="clear">지우기</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="result-heading">
+    <h2 id="result-heading">결과</h2>
+    <p class="status" id="status" role="status" aria-live="polite">아직 붙여넣은 내용이 없습니다.</p>
+    <div class="table-wrap" id="table-wrap" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">문항</th>
+            <th scope="col" class="num">유효 응답</th>
+            <th scope="col" class="num">평균</th>
+            <th scope="col" class="num">빈 응답</th>
+            <th scope="col" class="num">제외</th>
+          </tr>
+        </thead>
+        <tbody id="result-body"></tbody>
+      </table>
+    </div>
+    <ul class="rules">
+      <li>유효: 앞뒤 공백을 지운 값이 1·2·3·4·5 중 하나</li>
+      <li>빈 응답: 비었거나 공백만 있는 칸, 머리글보다 칸이 모자란 줄의 모자란 칸</li>
+      <li>제외: 그 밖의 값</li>
+      <li>평균: 유효 응답의 합 ÷ 유효 응답 수, 소수 셋째 자리에서 반올림. 유효 응답이 없으면 -</li>
+    </ul>
+  </section>
+</main>
 
 <script id="tally-core">
 /*
@@ -181,6 +315,78 @@ var TallyCore = (function () {
     formatAverage: formatAverage,
     tally: tally
   };
+})();
+</script>
+
+<script id="tally-ui">
+/* 화면: 입력을 읽어 TallyCore.tally 결과를 표로 그린다. 계산은 하지 않는다. */
+(function () {
+  'use strict';
+
+  var input = document.getElementById('data');
+  var status = document.getElementById('status');
+  var wrap = document.getElementById('table-wrap');
+  var body = document.getElementById('result-body');
+
+  var SAMPLE = [
+    '응답번호\t전반적 만족도\t강의 내용\t추천 의향',
+    '1\t5\t4\t5',
+    '2\t4\t\t4',
+    '3\t3\t모름\t',
+    '4\t 2 \t5\t6',
+    '5\t5'
+  ].join('\n');
+
+  function cell(tag, text, className) {
+    var el = document.createElement(tag);
+    el.textContent = text; // 붙여넣은 내용을 HTML로 해석하지 않는다
+    if (className) el.className = className;
+    return el;
+  }
+
+  function render() {
+    var result = TallyCore.tally(input.value);
+    body.replaceChildren();
+
+    if (result.status === 'empty') {
+      status.textContent = '아직 붙여넣은 내용이 없습니다.';
+      wrap.hidden = true;
+      return;
+    }
+    if (result.status === 'no-questions') {
+      status.textContent = '문항 열이 없습니다. 머리글 줄에 응답번호 열 다음으로 문항 열이 있어야 합니다. 엑셀에서 복사하면 칸이 탭으로 나뉩니다.';
+      wrap.hidden = true;
+      return;
+    }
+
+    status.textContent = '응답 ' + result.respondents + '줄 · 문항 ' + result.questions.length + '개';
+    result.questions.forEach(function (q) {
+      var tr = document.createElement('tr');
+      var name = cell('th', q.name);
+      name.scope = 'row';
+      tr.appendChild(name);
+      tr.appendChild(cell('td', String(q.valid), 'num'));
+      tr.appendChild(cell('td', q.average, 'num'));
+      tr.appendChild(cell('td', String(q.blank), 'num'));
+      tr.appendChild(cell('td', String(q.excluded), 'num'));
+      body.appendChild(tr);
+    });
+    wrap.hidden = false;
+  }
+
+  input.addEventListener('input', render);
+  document.getElementById('sample').addEventListener('click', function () {
+    input.value = SAMPLE;
+    render();
+    input.focus();
+  });
+  document.getElementById('clear').addEventListener('click', function () {
+    input.value = '';
+    render();
+    input.focus();
+  });
+
+  render();
 })();
 </script>
 
