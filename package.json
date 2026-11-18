@@ -1,7 +1,7 @@
 {
-  "name": "samok-10x10",
+  "name": "simple-games",
   "private": true,
-  "description": "10×10 판에서 3개를 먼저 잇는 쪽이 이기는 게임 (컴퓨터 상대 포함)",
+  "description": "컴퓨터와 또는 두 사람이 하는 간단한 게임 모음",
   "scripts": {
     "test": "node --test \"tests/*.test.js\""
   },
