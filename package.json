@@ -1,7 +1,7 @@
 {
-  "name": "survey-tally",
+  "name": "samok-10x10",
   "private": true,
-  "description": "엑셀에서 붙여넣은 설문 응답을 문항별로 집계하는 단일 페이지",
+  "description": "10×10 판에서 3개를 먼저 잇는 쪽이 이기는 게임 (컴퓨터 상대 포함)",
   "scripts": {
     "test": "node --test \"tests/*.test.js\""
   },

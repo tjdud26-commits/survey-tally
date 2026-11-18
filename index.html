@@ -5,31 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>설문 집계기</title>
+<title>삼목 10×10</title>
 <style>
 :root {
   color-scheme: light dark;
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --text: #1d1d1b;
-  --muted: #62625d;
-  --border: #d9d9d4;
-  --accent: #2f5d8a;
-  --accent-text: #ffffff;
-  --row-alt: #f1f1ee;
-  --focus: #2f5d8a;
+  --bg: #f4f1ea;
+  --text: #1f1d1a;
+  --muted: #625d55;
+  --board: #d9b77a;
+  --line: #7a5a2b;
+  --black: #1b1b1b;
+  --white: #fafafa;
+  --stone-edge: #5c5c5c;
+  --win: #d23b3b;
+  --focus: #1f5fa8;
+  --button-bg: #ffffff;
+  --button-border: #c9c3b8;
+  --dot-edge: #5c5c5c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161615;
-    --surface: #1f1f1d;
-    --text: #ececea;
-    --muted: #a5a59f;
-    --border: #3a3a37;
-    --accent: #7fb0e0;
-    --accent-text: #10161c;
-    --row-alt: #262624;
+    --bg: #171614;
+    --text: #ece9e3;
+    --muted: #a8a299;
+    --board: #b8925a;
+    --line: #5a3f18;
+    --button-bg: #24221f;
+    --button-border: #45413b;
     --focus: #7fb0e0;
+    --win: #ff5a5a;
+    --dot-edge: #b5afa5;
   }
 }
 * { box-sizing: border-box; }
@@ -39,356 +44,531 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
-main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
-h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 6px; }
-h2 { font-size: 1.1rem; margin: 0 0 8px; }
-p { margin: 0; }
-.lede { color: var(--muted); margin-bottom: 4px; }
-.privacy { color: var(--muted); font-size: 0.9rem; }
-section { margin-top: 28px; }
-label { display: block; font-weight: 600; margin-bottom: 6px; }
-.hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 8px; }
-textarea {
-  display: block;
+main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+.lede { color: var(--muted); margin: 0 0 16px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.status { font-weight: 600; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; margin: 0; }
+.dot { width: 18px; height: 18px; border-radius: 50%; display: inline-block; border: 1.5px solid var(--dot-edge); }
+.dot.black { background: var(--black); }
+.dot.white { background: var(--white); }
+button.action {
+  font: inherit; font-size: 0.95rem; padding: 7px 14px; border-radius: 8px;
+  border: 1px solid var(--button-border); background: var(--button-bg); color: var(--text); cursor: pointer;
+}
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
   width: 100%;
-  min-height: 180px;
-  resize: vertical;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font: 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  tab-size: 12;
-  white-space: pre;
-  overflow: auto;
+  aspect-ratio: 1 / 1;
+  background: var(--board);
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  padding: 2px;
+  touch-action: manipulation;
 }
-textarea:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-button {
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+.cell {
+  position: relative;
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
+  min-width: 0;
 }
-button:hover { border-color: var(--muted); }
-.status { color: var(--muted); margin-bottom: 10px; }
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
-tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
-tbody tr:nth-child(even) { background: var(--row-alt); }
-tbody th { font-weight: 500; overflow-wrap: anywhere; min-width: 8em; }
-.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rules { color: var(--muted); font-size: 0.9rem; padding-left: 1.2em; margin: 8px 0 0; }
-.rules li + li { margin-top: 2px; }
-label.hint { font-weight: 400; }
-@media (max-width: 480px) {
-  th, td { padding: 8px 7px; }
-  thead th { font-size: 0.78rem; }
-  tbody th { min-width: 5em; font-size: 0.95rem; }
+/* 교차점 격자선 */
+.cell::before, .cell::after {
+  content: ""; position: absolute; background: var(--line); pointer-events: none;
 }
+.cell::before { left: 0; right: 0; top: 50%; height: 1px; }
+.cell::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+.cell[data-col="0"]::before { left: 50%; }
+.cell[data-col="9"]::before { right: 50%; }
+.cell[data-row="0"]::after { top: 50%; }
+.cell[data-row="9"]::after { bottom: 50%; }
+.stone {
+  position: absolute; inset: 9%; border-radius: 50%; z-index: 1;
+  border: 1px solid var(--stone-edge);
+  box-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+.stone.black { background: radial-gradient(circle at 35% 30%, #555, var(--black) 60%); }
+.stone.white { background: radial-gradient(circle at 35% 30%, #fff, #dcdcdc 70%); }
+.stone.last::after {
+  content: ""; position: absolute; inset: 38%; border-radius: 50%; background: var(--win);
+}
+.stone.win { outline: 3px solid var(--win); outline-offset: 1px; }
+.cell[aria-disabled="true"] { cursor: default; }
+.cell[aria-disabled="false"]:hover .ghost { opacity: .35; }
+.ghost { position: absolute; inset: 9%; border-radius: 50%; opacity: 0; z-index: 1; pointer-events: none; }
+.ghost.black { background: var(--black); }
+.ghost.white { background: var(--white); border: 1px solid var(--stone-edge); }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; }
+.settings label { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--muted); }
+.settings select {
+  font: inherit; font-size: 0.95rem; color: var(--text); background: var(--button-bg);
+  border: 1px solid var(--button-border); border-radius: 8px; padding: 5px 8px;
+}
+select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.rules { color: var(--muted); font-size: 0.9rem; padding-left: 1.2em; margin: 16px 0 0; }
 [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <h1>설문 집계기</h1>
-    <p class="lede">엑셀에서 머리글 줄까지 복사해 붙여넣으면 문항별 결과가 나옵니다.</p>
-    <p class="privacy">붙여넣은 내용은 이 브라우저 안에서만 계산합니다. 어디로도 보내지 않고 저장하지 않으며, 창을 닫으면 사라집니다.</p>
-  </header>
+  <h1>삼목 10×10</h1>
+  <p class="lede">흑과 백이 번갈아 돌을 놓아, 가로·세로·대각선으로 3개를 먼저 잇는 쪽이 이깁니다.</p>
 
-  <section aria-labelledby="input-heading">
-    <h2 id="input-heading">응답 붙여넣기</h2>
-    <label for="data" class="hint">첫 줄은 머리글, 첫 열은 응답번호입니다. 응답번호 열은 집계하지 않습니다.</label>
-    <textarea id="data" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="응답번호&#9;문항1&#9;문항2&#10;1&#9;5&#9;4&#10;2&#9;3&#9;"></textarea>
-    <div class="actions">
-      <button type="button" id="sample">예시 넣기</button>
-      <button type="button" id="clear">지우기</button>
-    </div>
-  </section>
+  <div class="settings">
+    <label>방식
+      <select id="mode">
+        <option value="cpu" selected>컴퓨터와</option>
+        <option value="pvp">두 사람</option>
+      </select>
+    </label>
+    <label data-cpu-only>나는
+      <select id="color">
+        <option value="black" selected>흑 (먼저)</option>
+        <option value="white">백 (나중)</option>
+      </select>
+    </label>
+    <label data-cpu-only>난이도
+      <select id="level">
+        <option value="easy" selected>쉬움</option>
+        <option value="hard">어려움</option>
+      </select>
+    </label>
+  </div>
 
-  <section aria-labelledby="result-heading">
-    <h2 id="result-heading">결과</h2>
-    <p class="status" id="status" role="status" aria-live="polite">아직 붙여넣은 내용이 없습니다.</p>
-    <div class="table-wrap" id="table-wrap" hidden>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">문항</th>
-            <th scope="col" class="num">유효 응답</th>
-            <th scope="col" class="num">평균</th>
-            <th scope="col" class="num">빈 응답</th>
-            <th scope="col" class="num">제외</th>
-          </tr>
-        </thead>
-        <tbody id="result-body"></tbody>
-      </table>
-    </div>
-    <ul class="rules">
-      <li>유효: 앞뒤 공백을 지운 값이 1·2·3·4·5 중 하나</li>
-      <li>빈 응답: 비었거나 공백만 있는 칸, 머리글보다 칸이 모자란 줄의 모자란 칸</li>
-      <li>제외: 그 밖의 값</li>
-      <li>평균: 유효 응답의 합 ÷ 유효 응답 수, 소수 셋째 자리에서 반올림. 유효 응답이 없으면 -</li>
-    </ul>
-  </section>
+  <div class="bar">
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <button type="button" class="action" id="restart">새 게임</button>
+  </div>
+
+  <div class="board" id="board" role="grid" aria-label="10×10 바둑판"></div>
+
+  <ul class="rules">
+    <li>흑이 먼저 두고 번갈아 둡니다. 컴퓨터와 두거나, 두 사람이 한 화면에서 둘 수 있습니다.</li>
+    <li>3개 이상 이으면 이깁니다. 판이 가득 차면 무승부입니다.</li>
+    <li>방식·색·난이도를 바꾸면 새 게임이 시작됩니다.</li>
+  </ul>
 </main>
 
-<script id="tally-core">
+<script id="game-core">
 /*
- * 계산 로직. 화면(DOM)을 건드리지 않는다.
+ * 게임 규칙. 화면(DOM)을 건드리지 않는다.
  * tests/core.test.js 가 이 블록만 꺼내 시험한다.
  */
-var TallyCore = (function () {
+var GameCore = (function () {
   'use strict';
 
-  var VALID = { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+  var SIZE = 10;
+  var WIN_LENGTH = 3;
+  var BLACK = 'black';
+  var WHITE = 'white';
+  var DIRECTIONS = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
-  function isDelimiterOrEnd(text, i) {
-    return i >= text.length || text[i] === '\t' || text[i] === '\n' || text[i] === '\r';
+  function createGame(size, winLength) {
+    var n = size || SIZE;
+    var board = [];
+    for (var r = 0; r < n; r++) {
+      var row = [];
+      for (var c = 0; c < n; c++) row.push(null);
+      board.push(row);
+    }
+    return {
+      size: n,
+      winLength: winLength || WIN_LENGTH,
+      board: board,
+      turn: BLACK,
+      moves: 0,
+      status: 'playing', // 'playing' | 'won' | 'draw'
+      winner: null,
+      winLine: [],
+      last: null
+    };
+  }
+
+  function inBounds(game, r, c) {
+    return r >= 0 && c >= 0 && r < game.size && c < game.size;
+  }
+
+  /* (r, c)에 놓인 돌을 지나는 가장 긴 줄 중, winLength 이상인 첫 줄의 칸들을 돌려준다. */
+  function findWinLine(game, r, c) {
+    var player = game.board[r][c];
+    if (!player) return [];
+    for (var d = 0; d < DIRECTIONS.length; d++) {
+      var dr = DIRECTIONS[d][0];
+      var dc = DIRECTIONS[d][1];
+      var line = [[r, c]];
+      var rr = r + dr, cc = c + dc;
+      while (inBounds(game, rr, cc) && game.board[rr][cc] === player) {
+        line.push([rr, cc]); rr += dr; cc += dc;
+      }
+      rr = r - dr; cc = c - dc;
+      while (inBounds(game, rr, cc) && game.board[rr][cc] === player) {
+        line.unshift([rr, cc]); rr -= dr; cc -= dc;
+      }
+      if (line.length >= game.winLength) return line;
+    }
+    return [];
   }
 
   /*
-   * 엑셀에서 복사한 탭 구분 텍스트를 줄·칸 배열로 바꾼다.
-   * - 줄 구분: \r\n, \n, \r
-   * - 엑셀 따옴표 칸("...", 안의 "는 "")을 푼다. 형식이 맞지 않으면 글자 그대로 읽는다.
-   * - 길이 0인 줄은 버린다.
+   * (r, c)에 지금 차례의 돌을 놓은 새 상태를 돌려준다. 원래 상태는 바꾸지 않는다.
+   * 놓을 수 없으면(판 밖, 이미 돌이 있음, 게임 끝) 원래 상태를 그대로 돌려준다.
    */
-  function parseTsv(text) {
-    var rows = [];
-    var row = [];
-    var field = '';
-    var atFieldStart = true;
-    var rowHasContent = false;
-    var i = 0;
-    var n = text.length;
+  function play(game, r, c) {
+    if (game.status !== 'playing') return game;
+    if (!inBounds(game, r, c) || game.board[r][c]) return game;
 
-    function endRow() {
-      if (rowHasContent) {
-        row.push(field);
-        rows.push(row);
-      }
-      row = [];
-      field = '';
-      atFieldStart = true;
-      rowHasContent = false;
+    var board = game.board.map(function (row) { return row.slice(); });
+    board[r][c] = game.turn;
+    var next = {
+      size: game.size,
+      winLength: game.winLength,
+      board: board,
+      turn: game.turn === BLACK ? WHITE : BLACK,
+      moves: game.moves + 1,
+      status: 'playing',
+      winner: null,
+      winLine: [],
+      last: [r, c]
+    };
+
+    var line = findWinLine(next, r, c);
+    if (line.length) {
+      next.status = 'won';
+      next.winner = game.turn;
+      next.winLine = line;
+      next.turn = null;
+    } else if (next.moves === game.size * game.size) {
+      next.status = 'draw';
+      next.turn = null;
     }
+    return next;
+  }
 
-    while (i < n) {
-      var c = text[i];
+  /* ---------- 컴퓨터 상대 ---------- */
 
-      if (atFieldStart && c === '"') {
-        // 따옴표 칸 시도
-        var j = i + 1;
-        var value = '';
-        var closed = false;
-        while (j < n) {
-          if (text[j] === '"') {
-            if (text[j + 1] === '"') {
-              value += '"';
-              j += 2;
-            } else {
-              j += 1;
-              closed = true;
-              break;
-            }
-          } else {
-            value += text[j];
-            j += 1;
-          }
+  function other(player) {
+    return player === BLACK ? WHITE : BLACK;
+  }
+
+  /* 판만 복사한 계산용 상태. 돌을 놓았다 거두며 수를 따져 본다. */
+  function scratchOf(game) {
+    return {
+      size: game.size,
+      winLength: game.winLength,
+      board: game.board.map(function (row) { return row.slice(); })
+    };
+  }
+
+  function emptyCells(g) {
+    var list = [];
+    for (var r = 0; r < g.size; r++) {
+      for (var c = 0; c < g.size; c++) {
+        if (!g.board[r][c]) list.push([r, c]);
+      }
+    }
+    return list;
+  }
+
+  function wouldWin(g, r, c, player) {
+    g.board[r][c] = player;
+    var win = findWinLine(g, r, c).length > 0;
+    g.board[r][c] = null;
+    return win;
+  }
+
+  /* player 가 다음 한 수로 이길 수 있는 빈칸들 */
+  function winningCells(g, player) {
+    return emptyCells(g).filter(function (p) { return wouldWin(g, p[0], p[1], player); });
+  }
+
+  /* (r, c)에 두면 player 가 이길 자리가 몇 곳 생기는지 */
+  function threatsAfter(g, r, c, player) {
+    g.board[r][c] = player;
+    var n = winningCells(g, player).length;
+    g.board[r][c] = null;
+    return n;
+  }
+
+  /* 한 수로 이길 자리를 두 곳 이상 만드는 빈칸들(상대가 한 번에 다 막을 수 없음) */
+  function forkCells(g, player, cells) {
+    return cells.filter(function (p) { return threatsAfter(g, p[0], p[1], player) >= 2; });
+  }
+
+  /* 주변 돌과 판 가운데에 가까울수록 높은 점수. 같은 점수는 rng 로 고른다. */
+  function positionScore(g, r, c, me) {
+    var score = 0;
+    for (var dr = -2; dr <= 2; dr++) {
+      for (var dc = -2; dc <= 2; dc++) {
+        if (!dr && !dc) continue;
+        var rr = r + dr, cc = c + dc;
+        if (!inBounds(g, rr, cc) || !g.board[rr][cc]) continue;
+        var near = Math.max(Math.abs(dr), Math.abs(dc)) === 1 ? 3 : 1;
+        score += g.board[rr][cc] === me ? near * 1.1 : near;
+      }
+    }
+    var mid = (g.size - 1) / 2;
+    return score - 0.05 * (Math.abs(r - mid) + Math.abs(c - mid));
+  }
+
+  function pick(cells, rng) {
+    return cells[Math.floor(rng() * cells.length) % cells.length];
+  }
+
+  function bestByScore(g, cells, me, rng) {
+    var best = [];
+    var bestScore = -Infinity;
+    cells.forEach(function (p) {
+      var s = positionScore(g, p[0], p[1], me);
+      if (s > bestScore + 1e-9) { bestScore = s; best = [p]; }
+      else if (Math.abs(s - bestScore) <= 1e-9) best.push(p);
+    });
+    return pick(best, rng);
+  }
+
+  /* 이미 놓인 돌에서 한 칸 이내의 빈칸들. 없으면 모든 빈칸. */
+  function nearbyCells(g, cells) {
+    var near = cells.filter(function (p) {
+      for (var dr = -1; dr <= 1; dr++) {
+        for (var dc = -1; dc <= 1; dc++) {
+          var rr = p[0] + dr, cc = p[1] + dc;
+          if ((dr || dc) && inBounds(g, rr, cc) && g.board[rr][cc]) return true;
         }
-        if (closed && isDelimiterOrEnd(text, j)) {
-          field = value;
-          atFieldStart = false;
-          rowHasContent = true;
-          i = j;
-          continue;
-        }
-        // 형식이 맞지 않으면 아래에서 글자 그대로 읽는다
       }
-
-      if (c === '\t') {
-        row.push(field);
-        field = '';
-        atFieldStart = true;
-        rowHasContent = true;
-        i += 1;
-      } else if (c === '\r') {
-        endRow();
-        i += (text[i + 1] === '\n') ? 2 : 1;
-      } else if (c === '\n') {
-        endRow();
-        i += 1;
-      } else {
-        field += c;
-        atFieldStart = false;
-        rowHasContent = true;
-        i += 1;
-      }
-    }
-    endRow();
-    return rows;
-  }
-
-  /* 칸 하나를 'valid' | 'blank' | 'excluded' 로 판정한다. */
-  function classifyCell(raw) {
-    var v = (raw === undefined || raw === null) ? '' : String(raw).trim();
-    if (v === '') return { kind: 'blank' };
-    if (Object.prototype.hasOwnProperty.call(VALID, v)) return { kind: 'valid', value: VALID[v] };
-    return { kind: 'excluded' };
+      return false;
+    });
+    return near.length ? near : cells;
   }
 
   /*
-   * 평균: 합 ÷ 수를 소수 셋째 자리에서 반올림해 둘째 자리까지.
-   * 부동소수 오차를 피하려고 정수로 계산한다(값은 모두 양수).
+   * 지금 차례(game.turn)인 쪽이 둘 칸 [행, 열]을 고른다. 게임이 끝났으면 null.
+   * level: 'easy' | 'hard'. rng: 0 이상 1 미만을 돌려주는 함수(시험에서는 고정값).
+   *
+   * 쉬움: 이길 수 있으면 이김 → 상대가 이길 자리를 막음 → 돌 근처에 무작위
+   * 어려움: 이김 → 막음 → 두 곳을 동시에 노리는 수 → 상대의 그런 수를 미리 막음 → 위치 점수
    */
-  function formatAverage(sum, count) {
-    if (!count) return '-';
-    var hundredths = Math.floor((sum * 200 + count) / (2 * count));
-    var whole = Math.floor(hundredths / 100);
-    var frac = hundredths % 100;
-    return whole + '.' + (frac < 10 ? '0' : '') + frac;
-  }
+  function chooseMove(game, level, rng) {
+    if (game.status !== 'playing') return null;
+    var random = rng || Math.random;
+    var me = game.turn;
+    var op = other(me);
+    var g = scratchOf(game);
+    var empties = emptyCells(g);
+    if (!empties.length) return null;
 
-  /*
-   * 붙여넣은 텍스트 전체를 집계한다.
-   * 반환: { status: 'empty' | 'no-questions' | 'ok', respondents, questions: [...] }
-   */
-  function tally(text) {
-    var rows = parseTsv(String(text === undefined || text === null ? '' : text));
-    if (rows.length === 0) {
-      return { status: 'empty', respondents: 0, questions: [] };
-    }
-    var header = rows[0];
-    if (header.length < 2) {
-      return { status: 'no-questions', respondents: rows.length - 1, questions: [] };
+    if (game.moves === 0) {
+      var lo = Math.floor((g.size - 1) / 2), hi = Math.ceil((g.size - 1) / 2);
+      return pick([[lo, lo], [lo, hi], [hi, lo], [hi, hi]], random);
     }
 
-    var questions = [];
-    for (var col = 1; col < header.length; col++) {
-      var name = header[col].trim();
-      questions.push({
-        name: name === '' ? '(열 ' + (col + 1) + ')' : name,
-        valid: 0,
-        sum: 0,
-        blank: 0,
-        excluded: 0,
-        average: '-'
+    var wins = winningCells(g, me);
+    if (wins.length) return pick(wins, random);
+
+    var blocks = winningCells(g, op);
+    if (blocks.length) return pick(blocks, random);
+
+    if (level === 'easy') return pick(nearbyCells(g, empties), random);
+
+    var candidates = nearbyCells(g, empties);
+
+    var myForks = forkCells(g, me, candidates);
+    if (myForks.length) return bestByScore(g, myForks, me, random);
+
+    var opForks = forkCells(g, op, candidates);
+    if (opForks.length) {
+      // 상대가 노리는 자리가 여럿이면, 이길 자리를 하나 만들어 상대가 막게 하면서 시간을 번다.
+      // 그 수가 상대의 노림수 자리이기도 하면 가장 좋다.
+      var forcing = candidates.filter(function (p) { return threatsAfter(g, p[0], p[1], me) >= 1; });
+      var forcingOnFork = forcing.filter(function (p) {
+        return opForks.some(function (f) { return f[0] === p[0] && f[1] === p[1]; });
       });
+      if (forcingOnFork.length) return bestByScore(g, forcingOnFork, me, random);
+      if (opForks.length > 1 && forcing.length) return bestByScore(g, forcing, me, random);
+      return bestByScore(g, opForks, me, random);
     }
 
-    for (var r = 1; r < rows.length; r++) {
-      var row = rows[r];
-      for (var q = 0; q < questions.length; q++) {
-        var result = classifyCell(row[q + 1]); // 모자란 칸은 undefined → 빈 응답
-        var stat = questions[q];
-        if (result.kind === 'valid') {
-          stat.valid += 1;
-          stat.sum += result.value;
-        } else if (result.kind === 'blank') {
-          stat.blank += 1;
-        } else {
-          stat.excluded += 1;
-        }
-      }
-    }
-
-    for (var k = 0; k < questions.length; k++) {
-      questions[k].average = formatAverage(questions[k].sum, questions[k].valid);
-    }
-
-    return { status: 'ok', respondents: rows.length - 1, questions: questions };
+    return bestByScore(g, candidates, me, random);
   }
 
   return {
-    parseTsv: parseTsv,
-    classifyCell: classifyCell,
-    formatAverage: formatAverage,
-    tally: tally
+    SIZE: SIZE,
+    WIN_LENGTH: WIN_LENGTH,
+    BLACK: BLACK,
+    WHITE: WHITE,
+    createGame: createGame,
+    play: play,
+    findWinLine: findWinLine,
+    chooseMove: chooseMove
   };
 })();
 </script>
 
-<script id="tally-ui">
-/* 화면: 입력을 읽어 TallyCore.tally 결과를 표로 그린다. 계산은 하지 않는다. */
+<script id="game-ui">
+/* 화면: GameCore 상태를 판에 그리고 클릭을 GameCore.play 로 넘긴다. 규칙 판정은 하지 않는다. */
 (function () {
   'use strict';
 
-  var input = document.getElementById('data');
-  var status = document.getElementById('status');
-  var wrap = document.getElementById('table-wrap');
-  var body = document.getElementById('result-body');
+  var NAMES = { black: '흑', white: '백' };
+  var CPU_DELAY_MS = 350;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var modeEl = document.getElementById('mode');
+  var colorEl = document.getElementById('color');
+  var levelEl = document.getElementById('level');
+  var cpuOnly = document.querySelectorAll('[data-cpu-only]');
+  var game = GameCore.createGame();
+  var cells = [];
+  var thinking = false;
+  var gameId = 0; // 새 게임을 시작하면 늘린다. 예약된 컴퓨터 수가 지난 게임에 두지 않게 한다.
 
-  var SAMPLE = [
-    '응답번호\t전반적 만족도\t강의 내용\t추천 의향',
-    '1\t5\t4\t5',
-    '2\t4\t\t4',
-    '3\t3\t모름\t',
-    '4\t 2 \t5\t6',
-    '5\t5'
-  ].join('\n');
+  function vsCpu() { return modeEl.value === 'cpu'; }
+  function cpuColor() { return colorEl.value === 'black' ? 'white' : 'black'; }
+  function isCpuTurn() { return vsCpu() && game.status === 'playing' && game.turn === cpuColor(); }
 
-  function cell(tag, text, className) {
-    var el = document.createElement(tag);
-    el.textContent = text; // 붙여넣은 내용을 HTML로 해석하지 않는다
-    if (className) el.className = className;
+  function cpuMove() {
+    if (!isCpuTurn()) return;
+    thinking = true;
+    render();
+    var id = gameId;
+    setTimeout(function () {
+      if (id !== gameId) return;
+      var move = GameCore.chooseMove(game, levelEl.value);
+      if (move) game = GameCore.play(game, move[0], move[1]);
+      thinking = false;
+      render();
+    }, CPU_DELAY_MS);
+  }
+
+  function newGame() {
+    gameId += 1;
+    thinking = false;
+    game = GameCore.createGame();
+    cpuOnly.forEach(function (el) { el.hidden = !vsCpu(); });
+    render();
+    cpuMove();
+  }
+
+  function stone(color, extra) {
+    var el = document.createElement('span');
+    el.className = 'stone ' + color + (extra || '');
     return el;
   }
 
-  function render() {
-    var result = TallyCore.tally(input.value);
-    body.replaceChildren();
-
-    if (result.status === 'empty') {
-      status.textContent = '아직 붙여넣은 내용이 없습니다.';
-      wrap.hidden = true;
-      return;
+  function build() {
+    boardEl.replaceChildren();
+    cells = [];
+    for (var r = 0; r < game.size; r++) {
+      var rowEl = document.createElement('div');
+      rowEl.setAttribute('role', 'row');
+      rowEl.style.display = 'contents';
+      for (var c = 0; c < game.size; c++) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cell';
+        btn.setAttribute('role', 'gridcell');
+        btn.dataset.row = r;
+        btn.dataset.col = c;
+        btn.addEventListener('click', onCell);
+        btn.addEventListener('keydown', onKey);
+        rowEl.appendChild(btn);
+        cells.push(btn);
+      }
+      boardEl.appendChild(rowEl);
     }
-    if (result.status === 'no-questions') {
-      status.textContent = '문항 열이 없습니다. 머리글 줄에 응답번호 열 다음으로 문항 열이 있어야 합니다. 엑셀에서 복사하면 칸이 탭으로 나뉩니다.';
-      wrap.hidden = true;
-      return;
-    }
-
-    status.textContent = '응답 ' + result.respondents + '줄 · 문항 ' + result.questions.length + '개';
-    result.questions.forEach(function (q) {
-      var tr = document.createElement('tr');
-      var name = cell('th', q.name);
-      name.scope = 'row';
-      tr.appendChild(name);
-      tr.appendChild(cell('td', String(q.valid), 'num'));
-      tr.appendChild(cell('td', q.average, 'num'));
-      tr.appendChild(cell('td', String(q.blank), 'num'));
-      tr.appendChild(cell('td', String(q.excluded), 'num'));
-      body.appendChild(tr);
-    });
-    wrap.hidden = false;
   }
 
-  input.addEventListener('input', render);
-  document.getElementById('sample').addEventListener('click', function () {
-    input.value = SAMPLE;
+  function onCell(e) {
+    if (thinking || isCpuTurn()) return;
+    var btn = e.currentTarget;
+    var before = game;
+    game = GameCore.play(game, Number(btn.dataset.row), Number(btn.dataset.col));
     render();
-    input.focus();
-  });
-  document.getElementById('clear').addEventListener('click', function () {
-    input.value = '';
-    render();
-    input.focus();
-  });
+    if (game !== before) cpuMove();
+  }
 
-  render();
+  /* 방향키로 칸 사이를 옮겨 다닌다. */
+  function onKey(e) {
+    var moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    var m = moves[e.key];
+    if (!m) return;
+    e.preventDefault();
+    var r = Number(e.currentTarget.dataset.row) + m[0];
+    var c = Number(e.currentTarget.dataset.col) + m[1];
+    if (r < 0 || c < 0 || r >= game.size || c >= game.size) return;
+    cells[r * game.size + c].focus();
+  }
+
+  function setStatus(color, text) {
+    statusEl.replaceChildren();
+    if (color) {
+      var dot = document.createElement('span');
+      dot.className = 'dot ' + color;
+      dot.setAttribute('aria-hidden', 'true');
+      statusEl.appendChild(dot);
+    }
+    statusEl.appendChild(document.createTextNode(text));
+  }
+
+  function render() {
+    var wins = {};
+    game.winLine.forEach(function (p) { wins[p[0] + ',' + p[1]] = true; });
+
+    cells.forEach(function (btn) {
+      var r = Number(btn.dataset.row);
+      var c = Number(btn.dataset.col);
+      var v = game.board[r][c];
+      var label = (r + 1) + '행 ' + (c + 1) + '열';
+      btn.replaceChildren();
+      if (v) {
+        var extra = '';
+        if (game.last && game.last[0] === r && game.last[1] === c) extra += ' last';
+        if (wins[r + ',' + c]) extra += ' win';
+        btn.appendChild(stone(v, extra));
+        label += ', ' + NAMES[v];
+      } else if (game.status === 'playing' && !thinking && !isCpuTurn()) {
+        var ghost = document.createElement('span');
+        ghost.className = 'ghost ' + game.turn;
+        btn.appendChild(ghost);
+        label += ', 빈칸';
+      } else {
+        label += ', 빈칸';
+      }
+      // disabled 를 쓰면 키보드 포커스를 잃으므로 aria-disabled 로 표시만 한다. 놓을 수 없는 칸은 GameCore.play 가 무시한다.
+      btn.setAttribute('aria-disabled', String(Boolean(v) || game.status !== 'playing' || thinking || isCpuTurn()));
+      btn.setAttribute('aria-label', label);
+    });
+
+    if (game.status === 'won') {
+      if (vsCpu()) {
+        setStatus(game.winner, game.winner === cpuColor() ? '컴퓨터가 이겼습니다.' : '내가 이겼습니다!');
+      } else {
+        setStatus(game.winner, NAMES[game.winner] + ' 승리!');
+      }
+    } else if (game.status === 'draw') {
+      setStatus(null, '무승부입니다.');
+    } else if (isCpuTurn()) {
+      setStatus(game.turn, '컴퓨터(' + NAMES[game.turn] + ') 생각 중…');
+    } else {
+      setStatus(game.turn, NAMES[game.turn] + ' 차례' + (vsCpu() ? ' (나)' : ''));
+    }
+  }
+
+  document.getElementById('restart').addEventListener('click', function () {
+    newGame();
+    cells[0].focus();
+  });
+  [modeEl, colorEl, levelEl].forEach(function (el) { el.addEventListener('change', newGame); });
+
+  build();
+  newGame();
 })();
 </script>
-
 </body>
 </html>
