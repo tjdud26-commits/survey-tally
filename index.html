@@ -106,6 +106,13 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .ghost { position: absolute; inset: 9%; border-radius: 50%; opacity: 0; z-index: 1; pointer-events: none; }
 .ghost.black { background: var(--black); }
 .ghost.white { background: var(--white); border: 1px solid var(--stone-edge); }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; }
+.settings label { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--muted); }
+.settings select {
+  font: inherit; font-size: 0.95rem; color: var(--text); background: var(--button-bg);
+  border: 1px solid var(--button-border); border-radius: 8px; padding: 5px 8px;
+}
+select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .rules { color: var(--muted); font-size: 0.9rem; padding-left: 1.2em; margin: 16px 0 0; }
 [hidden] { display: none !important; }
 </style>
@@ -115,6 +122,27 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   <h1>삼목 10×10</h1>
   <p class="lede">흑과 백이 번갈아 돌을 놓아, 가로·세로·대각선으로 3개를 먼저 잇는 쪽이 이깁니다.</p>
 
+  <div class="settings">
+    <label>방식
+      <select id="mode">
+        <option value="cpu" selected>컴퓨터와</option>
+        <option value="pvp">두 사람</option>
+      </select>
+    </label>
+    <label data-cpu-only>나는
+      <select id="color">
+        <option value="black" selected>흑 (먼저)</option>
+        <option value="white">백 (나중)</option>
+      </select>
+    </label>
+    <label data-cpu-only>난이도
+      <select id="level">
+        <option value="easy" selected>쉬움</option>
+        <option value="hard">어려움</option>
+      </select>
+    </label>
+  </div>
+
   <div class="bar">
     <p class="status" id="status" role="status" aria-live="polite"></p>
     <button type="button" class="action" id="restart">새 게임</button>
@@ -123,8 +151,9 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   <div class="board" id="board" role="grid" aria-label="10×10 바둑판"></div>
 
   <ul class="rules">
-    <li>두 사람이 한 화면에서 번갈아 둡니다. 흑이 먼저 둡니다.</li>
+    <li>흑이 먼저 두고 번갈아 둡니다. 컴퓨터와 두거나, 두 사람이 한 화면에서 둘 수 있습니다.</li>
     <li>3개 이상 이으면 이깁니다. 판이 가득 차면 무승부입니다.</li>
+    <li>방식·색·난이도를 바꾸면 새 게임이 시작됩니다.</li>
   </ul>
 </main>
 
@@ -223,6 +252,151 @@ var GameCore = (function () {
     return next;
   }
 
+  /* ---------- 컴퓨터 상대 ---------- */
+
+  function other(player) {
+    return player === BLACK ? WHITE : BLACK;
+  }
+
+  /* 판만 복사한 계산용 상태. 돌을 놓았다 거두며 수를 따져 본다. */
+  function scratchOf(game) {
+    return {
+      size: game.size,
+      winLength: game.winLength,
+      board: game.board.map(function (row) { return row.slice(); })
+    };
+  }
+
+  function emptyCells(g) {
+    var list = [];
+    for (var r = 0; r < g.size; r++) {
+      for (var c = 0; c < g.size; c++) {
+        if (!g.board[r][c]) list.push([r, c]);
+      }
+    }
+    return list;
+  }
+
+  function wouldWin(g, r, c, player) {
+    g.board[r][c] = player;
+    var win = findWinLine(g, r, c).length > 0;
+    g.board[r][c] = null;
+    return win;
+  }
+
+  /* player 가 다음 한 수로 이길 수 있는 빈칸들 */
+  function winningCells(g, player) {
+    return emptyCells(g).filter(function (p) { return wouldWin(g, p[0], p[1], player); });
+  }
+
+  /* (r, c)에 두면 player 가 이길 자리가 몇 곳 생기는지 */
+  function threatsAfter(g, r, c, player) {
+    g.board[r][c] = player;
+    var n = winningCells(g, player).length;
+    g.board[r][c] = null;
+    return n;
+  }
+
+  /* 한 수로 이길 자리를 두 곳 이상 만드는 빈칸들(상대가 한 번에 다 막을 수 없음) */
+  function forkCells(g, player, cells) {
+    return cells.filter(function (p) { return threatsAfter(g, p[0], p[1], player) >= 2; });
+  }
+
+  /* 주변 돌과 판 가운데에 가까울수록 높은 점수. 같은 점수는 rng 로 고른다. */
+  function positionScore(g, r, c, me) {
+    var score = 0;
+    for (var dr = -2; dr <= 2; dr++) {
+      for (var dc = -2; dc <= 2; dc++) {
+        if (!dr && !dc) continue;
+        var rr = r + dr, cc = c + dc;
+        if (!inBounds(g, rr, cc) || !g.board[rr][cc]) continue;
+        var near = Math.max(Math.abs(dr), Math.abs(dc)) === 1 ? 3 : 1;
+        score += g.board[rr][cc] === me ? near * 1.1 : near;
+      }
+    }
+    var mid = (g.size - 1) / 2;
+    return score - 0.05 * (Math.abs(r - mid) + Math.abs(c - mid));
+  }
+
+  function pick(cells, rng) {
+    return cells[Math.floor(rng() * cells.length) % cells.length];
+  }
+
+  function bestByScore(g, cells, me, rng) {
+    var best = [];
+    var bestScore = -Infinity;
+    cells.forEach(function (p) {
+      var s = positionScore(g, p[0], p[1], me);
+      if (s > bestScore + 1e-9) { bestScore = s; best = [p]; }
+      else if (Math.abs(s - bestScore) <= 1e-9) best.push(p);
+    });
+    return pick(best, rng);
+  }
+
+  /* 이미 놓인 돌에서 한 칸 이내의 빈칸들. 없으면 모든 빈칸. */
+  function nearbyCells(g, cells) {
+    var near = cells.filter(function (p) {
+      for (var dr = -1; dr <= 1; dr++) {
+        for (var dc = -1; dc <= 1; dc++) {
+          var rr = p[0] + dr, cc = p[1] + dc;
+          if ((dr || dc) && inBounds(g, rr, cc) && g.board[rr][cc]) return true;
+        }
+      }
+      return false;
+    });
+    return near.length ? near : cells;
+  }
+
+  /*
+   * 지금 차례(game.turn)인 쪽이 둘 칸 [행, 열]을 고른다. 게임이 끝났으면 null.
+   * level: 'easy' | 'hard'. rng: 0 이상 1 미만을 돌려주는 함수(시험에서는 고정값).
+   *
+   * 쉬움: 이길 수 있으면 이김 → 상대가 이길 자리를 막음 → 돌 근처에 무작위
+   * 어려움: 이김 → 막음 → 두 곳을 동시에 노리는 수 → 상대의 그런 수를 미리 막음 → 위치 점수
+   */
+  function chooseMove(game, level, rng) {
+    if (game.status !== 'playing') return null;
+    var random = rng || Math.random;
+    var me = game.turn;
+    var op = other(me);
+    var g = scratchOf(game);
+    var empties = emptyCells(g);
+    if (!empties.length) return null;
+
+    if (game.moves === 0) {
+      var lo = Math.floor((g.size - 1) / 2), hi = Math.ceil((g.size - 1) / 2);
+      return pick([[lo, lo], [lo, hi], [hi, lo], [hi, hi]], random);
+    }
+
+    var wins = winningCells(g, me);
+    if (wins.length) return pick(wins, random);
+
+    var blocks = winningCells(g, op);
+    if (blocks.length) return pick(blocks, random);
+
+    if (level === 'easy') return pick(nearbyCells(g, empties), random);
+
+    var candidates = nearbyCells(g, empties);
+
+    var myForks = forkCells(g, me, candidates);
+    if (myForks.length) return bestByScore(g, myForks, me, random);
+
+    var opForks = forkCells(g, op, candidates);
+    if (opForks.length) {
+      // 상대가 노리는 자리가 여럿이면, 이길 자리를 하나 만들어 상대가 막게 하면서 시간을 번다.
+      // 그 수가 상대의 노림수 자리이기도 하면 가장 좋다.
+      var forcing = candidates.filter(function (p) { return threatsAfter(g, p[0], p[1], me) >= 1; });
+      var forcingOnFork = forcing.filter(function (p) {
+        return opForks.some(function (f) { return f[0] === p[0] && f[1] === p[1]; });
+      });
+      if (forcingOnFork.length) return bestByScore(g, forcingOnFork, me, random);
+      if (opForks.length > 1 && forcing.length) return bestByScore(g, forcing, me, random);
+      return bestByScore(g, opForks, me, random);
+    }
+
+    return bestByScore(g, candidates, me, random);
+  }
+
   return {
     SIZE: SIZE,
     WIN_LENGTH: WIN_LENGTH,
@@ -230,7 +404,8 @@ var GameCore = (function () {
     WHITE: WHITE,
     createGame: createGame,
     play: play,
-    findWinLine: findWinLine
+    findWinLine: findWinLine,
+    chooseMove: chooseMove
   };
 })();
 </script>
@@ -241,10 +416,44 @@ var GameCore = (function () {
   'use strict';
 
   var NAMES = { black: '흑', white: '백' };
+  var CPU_DELAY_MS = 350;
   var boardEl = document.getElementById('board');
   var statusEl = document.getElementById('status');
+  var modeEl = document.getElementById('mode');
+  var colorEl = document.getElementById('color');
+  var levelEl = document.getElementById('level');
+  var cpuOnly = document.querySelectorAll('[data-cpu-only]');
   var game = GameCore.createGame();
   var cells = [];
+  var thinking = false;
+  var gameId = 0; // 새 게임을 시작하면 늘린다. 예약된 컴퓨터 수가 지난 게임에 두지 않게 한다.
+
+  function vsCpu() { return modeEl.value === 'cpu'; }
+  function cpuColor() { return colorEl.value === 'black' ? 'white' : 'black'; }
+  function isCpuTurn() { return vsCpu() && game.status === 'playing' && game.turn === cpuColor(); }
+
+  function cpuMove() {
+    if (!isCpuTurn()) return;
+    thinking = true;
+    render();
+    var id = gameId;
+    setTimeout(function () {
+      if (id !== gameId) return;
+      var move = GameCore.chooseMove(game, levelEl.value);
+      if (move) game = GameCore.play(game, move[0], move[1]);
+      thinking = false;
+      render();
+    }, CPU_DELAY_MS);
+  }
+
+  function newGame() {
+    gameId += 1;
+    thinking = false;
+    game = GameCore.createGame();
+    cpuOnly.forEach(function (el) { el.hidden = !vsCpu(); });
+    render();
+    cpuMove();
+  }
 
   function stone(color, extra) {
     var el = document.createElement('span');
@@ -276,9 +485,12 @@ var GameCore = (function () {
   }
 
   function onCell(e) {
+    if (thinking || isCpuTurn()) return;
     var btn = e.currentTarget;
+    var before = game;
     game = GameCore.play(game, Number(btn.dataset.row), Number(btn.dataset.col));
     render();
+    if (game !== before) cpuMove();
   }
 
   /* 방향키로 칸 사이를 옮겨 다닌다. */
@@ -320,7 +532,7 @@ var GameCore = (function () {
         if (wins[r + ',' + c]) extra += ' win';
         btn.appendChild(stone(v, extra));
         label += ', ' + NAMES[v];
-      } else if (game.status === 'playing') {
+      } else if (game.status === 'playing' && !thinking && !isCpuTurn()) {
         var ghost = document.createElement('span');
         ghost.className = 'ghost ' + game.turn;
         btn.appendChild(ghost);
@@ -329,27 +541,33 @@ var GameCore = (function () {
         label += ', 빈칸';
       }
       // disabled 를 쓰면 키보드 포커스를 잃으므로 aria-disabled 로 표시만 한다. 놓을 수 없는 칸은 GameCore.play 가 무시한다.
-      btn.setAttribute('aria-disabled', String(Boolean(v) || game.status !== 'playing'));
+      btn.setAttribute('aria-disabled', String(Boolean(v) || game.status !== 'playing' || thinking || isCpuTurn()));
       btn.setAttribute('aria-label', label);
     });
 
     if (game.status === 'won') {
-      setStatus(game.winner, NAMES[game.winner] + ' 승리!');
+      if (vsCpu()) {
+        setStatus(game.winner, game.winner === cpuColor() ? '컴퓨터가 이겼습니다.' : '내가 이겼습니다!');
+      } else {
+        setStatus(game.winner, NAMES[game.winner] + ' 승리!');
+      }
     } else if (game.status === 'draw') {
       setStatus(null, '무승부입니다.');
+    } else if (isCpuTurn()) {
+      setStatus(game.turn, '컴퓨터(' + NAMES[game.turn] + ') 생각 중…');
     } else {
-      setStatus(game.turn, NAMES[game.turn] + ' 차례');
+      setStatus(game.turn, NAMES[game.turn] + ' 차례' + (vsCpu() ? ' (나)' : ''));
     }
   }
 
   document.getElementById('restart').addEventListener('click', function () {
-    game = GameCore.createGame();
-    render();
+    newGame();
     cells[0].focus();
   });
+  [modeEl, colorEl, levelEl].forEach(function (el) { el.addEventListener('change', newGame); });
 
   build();
-  render();
+  newGame();
 })();
 </script>
 </body>
