@@ -1,0 +1,11 @@
+{
+  "name": "samok-10x10",
+  "private": true,
+  "description": "10×10 판에서 3개를 먼저 잇는 쪽이 이기는 두 사람용 게임",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
