@@ -13,6 +13,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const SCRIPTS = {
   'index.html': [],
   'samok.html': ['game-core', 'game-ui'],
+  'mancala.html': ['mancala-core', 'mancala-ui'],
 };
 
 test('페이지 목록이 예상과 같음', () => {

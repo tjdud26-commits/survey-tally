@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>만칼라</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ea;
+  --text: #1f1d1a;
+  --muted: #625d55;
+  --board: #b07a45;
+  --board-edge: #7a4f25;
+  --pit: #8a5a2e;
+  --pit-active: #9c6835;
+  --pit-text: #fff6e8;
+  --seed-a: #f2d16b;
+  --seed-b: #e9e4d8;
+  --highlight: #ffd54a;
+  --capture: #ff7a59;
+  --focus: #1f5fa8;
+  --button-bg: #ffffff;
+  --button-border: #c9c3b8;
+  --mine: #2f6f3e;
+  --theirs: #8a3b2e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614;
+    --text: #ece9e3;
+    --muted: #a8a299;
+    --button-bg: #24221f;
+    --button-border: #45413b;
+    --focus: #7fb0e0;
+    --mine: #7fcf8f;
+    --theirs: #f0a090;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  line-height: 1.5;
+}
+main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+.back { display: inline-block; color: var(--muted); text-decoration: none; font-size: 0.9rem; margin-bottom: 10px; }
+.back:hover { text-decoration: underline; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+.lede { color: var(--muted); margin: 0 0 16px; }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; }
+.settings label { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--muted); }
+.settings select {
+  font: inherit; font-size: 0.95rem; color: var(--text); background: var(--button-bg);
+  border: 1px solid var(--button-border); border-radius: 8px; padding: 5px 8px;
+}
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+.status { font-weight: 600; font-size: 1.05rem; margin: 0; }
+.note { color: var(--muted); min-height: 1.5em; margin: 0 0 10px; font-size: 0.95rem; }
+button.action {
+  font: inherit; font-size: 0.95rem; padding: 7px 14px; border-radius: 8px;
+  border: 1px solid var(--button-border); background: var(--button-bg); color: var(--text); cursor: pointer;
+}
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.side-label { font-size: 0.85rem; font-weight: 600; margin: 4px 2px; display: flex; justify-content: space-between; }
+.side-label .score { font-variant-numeric: tabular-nums; }
+.side-label.top { color: var(--theirs); }
+.side-label.bottom { color: var(--mine); }
+
+.board {
+  display: grid;
+  grid-template-columns: 1.15fr repeat(6, 1fr) 1.15fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  padding: 8px;
+  background: var(--board);
+  border: 2px solid var(--board-edge);
+  border-radius: 18px;
+  touch-action: manipulation;
+}
+.pit, .store {
+  position: relative;
+  border-radius: 999px;
+  background: var(--pit);
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.35);
+  color: var(--pit-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.pit { aspect-ratio: 1 / 1; border: 0; padding: 0; font: inherit; }
+.store { grid-row: 1 / span 2; border-radius: 999px; }
+.store.north { grid-column: 1; }
+.store.south { grid-column: 8; }
+.count {
+  position: absolute; z-index: 2; font-weight: 700; font-size: 0.9rem; line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  background: rgba(30, 18, 8, .78); color: #fff6e8;
+  padding: 0 6px; border-radius: 999px; min-width: 1.5em; text-align: center;
+}
+.store .count { font-size: 1.2rem; }
+.seeds { position: absolute; inset: 14%; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 2px; opacity: .85; }
+.seed { width: 22%; aspect-ratio: 1 / 1; border-radius: 50%; background: var(--seed-a); box-shadow: 0 1px 1px rgba(0,0,0,.4); }
+.seed:nth-child(even) { background: var(--seed-b); }
+.store .seeds { inset: 10% 14%; }
+.store .seed { width: 30%; }
+
+.pit.playable { cursor: pointer; background: var(--pit-active); box-shadow: inset 0 3px 6px rgba(0,0,0,.35), 0 0 0 2px var(--highlight); }
+.pit.playable:hover { filter: brightness(1.08); }
+.pit[aria-disabled="true"] { cursor: default; }
+.pit.from { box-shadow: inset 0 3px 6px rgba(0,0,0,.35), 0 0 0 3px var(--board-edge), 0 0 0 5px var(--highlight); }
+.landed::after {
+  content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 3px dashed var(--highlight); pointer-events: none;
+}
+.captured::after {
+  content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 3px solid var(--capture); pointer-events: none;
+}
+.rules { color: var(--muted); font-size: 0.9rem; padding-left: 1.2em; margin: 16px 0 0; }
+.rules li + li { margin-top: 2px; }
+@media (max-width: 420px) {
+  .board { gap: 4px; padding: 6px; border-radius: 14px; }
+  .count { font-size: 0.85rem; }
+  .store .count { font-size: 1.05rem; }
+}
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← 게임 목록</a>
+  <h1>만칼라</h1>
+  <p class="lede">내 구덩이의 씨앗을 한 칸씩 나눠 뿌려, 오른쪽 내 창고에 씨앗을 더 많이 모으는 쪽이 이깁니다.</p>
+
+  <div class="settings">
+    <label>방식
+      <select id="mode">
+        <option value="cpu" selected>컴퓨터와</option>
+        <option value="pvp">두 사람</option>
+      </select>
+    </label>
+    <label data-cpu-only>나는
+      <select id="order">
+        <option value="first" selected>먼저</option>
+        <option value="second">나중</option>
+      </select>
+    </label>
+    <label data-cpu-only>난이도
+      <select id="level">
+        <option value="easy" selected>쉬움</option>
+        <option value="normal">보통</option>
+        <option value="hard">어려움</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="bar">
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <button type="button" class="action" id="restart">새 게임</button>
+  </div>
+  <p class="note" id="note" aria-live="polite"></p>
+
+  <p class="side-label top"><span id="north-name"></span><span class="score" id="north-score"></span></p>
+  <div class="board" id="board" aria-label="만칼라 판"></div>
+  <p class="side-label bottom"><span id="south-name"></span><span class="score" id="south-score"></span></p>
+
+  <ul class="rules">
+    <li>내 차례에 아래쪽(두 사람이면 자기 쪽) 구덩이 하나를 눌러 씨앗을 모두 집어, 시계 반대 방향으로 한 칸에 하나씩 뿌립니다. 상대 창고는 건너뜁니다.</li>
+    <li>마지막 씨앗이 내 창고에 들어가면 한 번 더 둡니다.</li>
+    <li>마지막 씨앗이 내 쪽의 빈 구덩이에 떨어지고 맞은편 구덩이에 씨앗이 있으면, 둘 다 따서 내 창고에 넣습니다.</li>
+    <li>어느 한쪽 구덩이가 모두 비면 끝납니다. 남은 씨앗은 각자 자기 창고로 가고, 창고에 씨앗이 많은 쪽이 이깁니다.</li>
+  </ul>
+</main>
+
+<script id="mancala-core">
+/*
+ * 만칼라 규칙과 컴퓨터의 수 고르기. 화면(DOM)을 건드리지 않는다.
+ * tests/mancala.test.js 가 이 블록만 꺼내 시험한다.
+ *
+ * 판 칸 번호 (시계 반대 방향으로 뿌린다):
+ *   0~5   : 아래쪽(south, 0번 사람) 구덩이, 왼쪽에서 오른쪽
+ *   6     : 아래쪽 창고 (오른쪽)
+ *   7~12  : 위쪽(north, 1번 사람) 구덩이, 오른쪽에서 왼쪽
+ *   13    : 위쪽 창고 (왼쪽)
+ */
+var MancalaCore = (function () {
+  'use strict';
+
+  var PITS = 6;
+  var SEEDS = 4;
+  var SIZE = 2 * PITS + 2; // 14
+  var SOUTH = 0;
+  var NORTH = 1;
+
+  function storeOf(player) { return player === SOUTH ? PITS : SIZE - 1; }
+  function firstPitOf(player) { return player === SOUTH ? 0 : PITS + 1; }
+  function ownsPit(player, i) { var f = firstPitOf(player); return i >= f && i < f + PITS; }
+  function opposite(i) { return 2 * PITS - i; } // 0↔12, 5↔7
+  function other(player) { return player === SOUTH ? NORTH : SOUTH; }
+
+  function pitIndices(player) {
+    var f = firstPitOf(player);
+    var list = [];
+    for (var k = 0; k < PITS; k++) list.push(f + k);
+    return list;
+  }
+
+  function sideSum(board, player) {
+    return pitIndices(player).reduce(function (s, i) { return s + board[i]; }, 0);
+  }
+
+  function createGame(seeds, first) {
+    var n = seeds === undefined ? SEEDS : seeds;
+    var board = [];
+    for (var i = 0; i < SIZE; i++) board.push(i === storeOf(SOUTH) || i === storeOf(NORTH) ? 0 : n);
+    return {
+      board: board,
+      turn: first === NORTH ? NORTH : SOUTH,
+      status: 'playing', // 'playing' | 'over'
+      winner: null,      // 0 | 1 | null(무승부 또는 진행 중)
+      moves: 0,
+      last: null         // 직전 수: { player, from, landed, extraTurn, captured, capturedFrom }
+    };
+  }
+
+  function legalMoves(game) {
+    if (game.status !== 'playing') return [];
+    return pitIndices(game.turn).filter(function (i) { return game.board[i] > 0; });
+  }
+
+  /*
+   * 구덩이 from 을 골라 둔 새 상태를 돌려준다. 원래 상태는 바꾸지 않는다.
+   * 둘 수 없는 수(게임 끝, 내 구덩이가 아님, 빈 구덩이)는 원래 상태를 그대로 돌려준다.
+   */
+  function play(game, from) {
+    if (game.status !== 'playing') return game;
+    var me = game.turn;
+    if (!ownsPit(me, from) || game.board[from] === 0) return game;
+
+    var b = game.board.slice();
+    var seeds = b[from];
+    b[from] = 0;
+    var idx = from;
+    var skip = storeOf(other(me));
+    while (seeds > 0) {
+      idx = (idx + 1) % SIZE;
+      if (idx === skip) continue;
+      b[idx] += 1;
+      seeds -= 1;
+    }
+
+    var extraTurn = idx === storeOf(me);
+    var captured = 0;
+    var capturedFrom = null;
+    if (!extraTurn && ownsPit(me, idx) && b[idx] === 1 && b[opposite(idx)] > 0) {
+      capturedFrom = opposite(idx);
+      captured = b[capturedFrom] + 1;
+      b[storeOf(me)] += captured;
+      b[idx] = 0;
+      b[capturedFrom] = 0;
+    }
+
+    var next = {
+      board: b,
+      turn: extraTurn ? me : other(me),
+      status: 'playing',
+      winner: null,
+      moves: game.moves + 1,
+      last: { player: me, from: from, landed: idx, extraTurn: extraTurn, captured: captured, capturedFrom: capturedFrom }
+    };
+
+    if (sideSum(b, SOUTH) === 0 || sideSum(b, NORTH) === 0) {
+      [SOUTH, NORTH].forEach(function (p) {
+        pitIndices(p).forEach(function (i) { b[storeOf(p)] += b[i]; b[i] = 0; });
+      });
+      next.status = 'over';
+      next.turn = null;
+      next.last.extraTurn = false;
+      var s = b[storeOf(SOUTH)], n = b[storeOf(NORTH)];
+      next.winner = s > n ? SOUTH : (n > s ? NORTH : null);
+    }
+    return next;
+  }
+
+  /* ---------- 컴퓨터 상대 ---------- */
+
+  var DEPTH = { normal: 4, hard: 9 };
+  var EASY_RANDOM = 0.4; // 쉬움: 이 확률로 아무 수나 둔다
+
+  /* me 쪽에서 본 판 점수: 창고 차이에, 내 쪽에 남은 씨앗을 조금 더한다. */
+  function evaluate(game, me) {
+    var b = game.board;
+    var diff = b[storeOf(me)] - b[storeOf(other(me))];
+    if (game.status === 'over') return diff * 100 + (game.winner === me ? 10000 : game.winner === null ? 0 : -10000);
+    return diff * 100 + 25 * (sideSum(b, me) - sideSum(b, other(me)));
+  }
+
+  /* 구덩이 i 에서 뿌리면 마지막 씨앗이 내 창고에 들어가는가. 한 바퀴는 상대 창고를 뺀 13칸. */
+  function givesExtraTurn(game, i) {
+    return game.board[i] % (SIZE - 1) === storeOf(game.turn) - i;
+  }
+
+  /* 한 번 더 두는 수를 먼저 살펴보면 가지치기가 잘 된다. */
+  function orderedMoves(game) {
+    return legalMoves(game).sort(function (a, c) {
+      return (givesExtraTurn(game, c) ? 1 : 0) - (givesExtraTurn(game, a) ? 1 : 0) || a - c;
+    });
+  }
+
+  function search(game, depth, alpha, beta, me) {
+    if (depth === 0 || game.status !== 'playing') return evaluate(game, me);
+    var moves = orderedMoves(game);
+    var maximizing = game.turn === me;
+    var best = maximizing ? -Infinity : Infinity;
+    for (var k = 0; k < moves.length; k++) {
+      var v = search(play(game, moves[k]), depth - 1, alpha, beta, me);
+      if (maximizing) {
+        if (v > best) best = v;
+        if (best > alpha) alpha = best;
+      } else {
+        if (v < best) best = v;
+        if (best < beta) beta = best;
+      }
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  function pick(list, rng) {
+    return list[Math.floor(rng() * list.length) % list.length];
+  }
+
+  /*
+   * 지금 차례인 쪽이 고를 구덩이 번호. 게임이 끝났으면 null.
+   * level: 'easy' | 'normal' | 'hard'. rng: 0 이상 1 미만을 돌려주는 함수(시험에서는 고정값).
+   */
+  function chooseMove(game, level, rng) {
+    var random = rng || Math.random;
+    var moves = legalMoves(game);
+    if (!moves.length) return null;
+    if (moves.length === 1) return moves[0];
+    var me = game.turn;
+
+    if (level === 'easy' && random() < EASY_RANDOM) return pick(moves, random);
+    var depth = level === 'easy' ? 1 : (DEPTH[level] || DEPTH.normal);
+
+    var best = [];
+    var bestValue = -Infinity;
+    moves.forEach(function (m) {
+      var v = search(play(game, m), depth - 1, -Infinity, Infinity, me);
+      if (v > bestValue) { bestValue = v; best = [m]; }
+      else if (v === bestValue) best.push(m);
+    });
+    return pick(best, random);
+  }
+
+  return {
+    PITS: PITS,
+    SEEDS: SEEDS,
+    SOUTH: SOUTH,
+    NORTH: NORTH,
+    storeOf: storeOf,
+    ownsPit: ownsPit,
+    opposite: opposite,
+    createGame: createGame,
+    legalMoves: legalMoves,
+    play: play,
+    chooseMove: chooseMove
+  };
+})();
+</script>
+
+<script id="mancala-ui">
+/* 화면: MancalaCore 상태를 판에 그리고 클릭을 MancalaCore.play 로 넘긴다. 규칙 판정은 하지 않는다. */
+(function () {
+  'use strict';
+
+  var C = MancalaCore;
+  var CPU_DELAY_MS = 600;
+  var MAX_SEED_DOTS = 15;
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var noteEl = document.getElementById('note');
+  var modeEl = document.getElementById('mode');
+  var orderEl = document.getElementById('order');
+  var levelEl = document.getElementById('level');
+  var cpuOnly = document.querySelectorAll('[data-cpu-only]');
+  var game = C.createGame();
+  var slots = {}; // 칸 번호 → 요소
+  var gameId = 0;
+
+  function vsCpu() { return modeEl.value === 'cpu'; }
+  // 컴퓨터와 둘 때 사람은 언제나 아래쪽(SOUTH). '나중'이면 위쪽(컴퓨터)이 먼저 둔다.
+  function isCpuTurn() { return vsCpu() && game.status === 'playing' && game.turn === C.NORTH; }
+
+  function name(player) {
+    if (vsCpu()) return player === C.SOUTH ? '나' : '컴퓨터';
+    return player === C.SOUTH ? '아래쪽' : '위쪽';
+  }
+
+  /* 문장의 주어: 내가 / 컴퓨터가 / 아래쪽이 / 위쪽이 */
+  function subject(player) {
+    if (vsCpu()) return player === C.SOUTH ? '내가' : '컴퓨터가';
+    return name(player) + '이';
+  }
+
+  function slot(i, isStore) {
+    var el = document.createElement(isStore ? 'div' : 'button');
+    if (isStore) {
+      el.className = 'store ' + (i === C.storeOf(C.SOUTH) ? 'south' : 'north');
+    } else {
+      el.type = 'button';
+      el.className = 'pit';
+      el.dataset.pit = i;
+      el.addEventListener('click', onPit);
+    }
+    var seeds = document.createElement('span');
+    seeds.className = 'seeds';
+    seeds.setAttribute('aria-hidden', 'true');
+    var count = document.createElement('span');
+    count.className = 'count';
+    count.setAttribute('aria-hidden', 'true');
+    el.appendChild(seeds);
+    el.appendChild(count);
+    slots[i] = el;
+    return el;
+  }
+
+  function build() {
+    boardEl.replaceChildren();
+    // 판 모양: 왼쪽 위쪽 창고 | 위 줄 12..7 | 오른쪽 아래쪽 창고
+    //                        | 아래 줄 0..5 |
+    boardEl.appendChild(slot(C.storeOf(C.NORTH), true));
+    for (var i = 2 * C.PITS; i > C.PITS; i--) boardEl.appendChild(slot(i, false));
+    boardEl.appendChild(slot(C.storeOf(C.SOUTH), true));
+    for (var j = 0; j < C.PITS; j++) {
+      var el = slot(j, false);
+      el.style.gridRow = '2';
+      el.style.gridColumn = String(j + 2);
+      boardEl.appendChild(el);
+    }
+  }
+
+  function canClick(i) {
+    return game.status === 'playing' && !isCpuTurn() && C.ownsPit(game.turn, i) && game.board[i] > 0;
+  }
+
+  function onPit(e) {
+    var i = Number(e.currentTarget.dataset.pit);
+    if (!canClick(i)) return;
+    game = C.play(game, i);
+    render();
+    cpuMove();
+  }
+
+  /* 컴퓨터 차례면 잠시 뒤 둔다. 한 번 더 두게 되면 이어서 또 둔다. */
+  function cpuMove() {
+    if (!isCpuTurn()) return;
+    var id = gameId;
+    setTimeout(function () {
+      if (id !== gameId || !isCpuTurn()) return;
+      var m = C.chooseMove(game, levelEl.value);
+      if (m !== null) game = C.play(game, m);
+      render();
+      cpuMove();
+    }, CPU_DELAY_MS);
+  }
+
+  function pitLabel(i) {
+    var owner = C.ownsPit(C.SOUTH, i) ? C.SOUTH : C.NORTH;
+    var nth = owner === C.SOUTH ? i + 1 : i - C.PITS;
+    return name(owner) + ' 구덩이 ' + nth + '번, 씨앗 ' + game.board[i] + '개';
+  }
+
+  function drawSeeds(el, n) {
+    var box = el.querySelector('.seeds');
+    box.replaceChildren();
+    for (var k = 0; k < Math.min(n, MAX_SEED_DOTS); k++) {
+      var s = document.createElement('span');
+      s.className = 'seed';
+      box.appendChild(s);
+    }
+  }
+
+  function describeLast() {
+    var l = game.last;
+    if (!l) return '';
+    var who = subject(l.player);
+    var parts = [];
+    if (l.captured) parts.push(who + ' 씨앗 ' + l.captured + '개를 따냈습니다.');
+    if (l.extraTurn) parts.push(who + ' 창고에 넣어 한 번 더 둡니다.');
+    return parts.join(' ');
+  }
+
+  function render() {
+    var l = game.last;
+    Object.keys(slots).forEach(function (key) {
+      var i = Number(key);
+      var el = slots[i];
+      var n = game.board[i];
+      el.querySelector('.count').textContent = String(n);
+      drawSeeds(el, n);
+      el.classList.toggle('landed', Boolean(l && l.landed === i && !l.captured));
+      el.classList.toggle('captured', Boolean(l && l.captured && l.capturedFrom === i));
+      if (el.tagName === 'BUTTON') {
+        var ok = canClick(i);
+        el.classList.toggle('playable', ok);
+        el.classList.toggle('from', Boolean(l && l.from === i));
+        el.setAttribute('aria-disabled', String(!ok));
+        el.setAttribute('aria-label', pitLabel(i));
+      } else {
+        el.setAttribute('aria-label', name(i === C.storeOf(C.SOUTH) ? C.SOUTH : C.NORTH) + ' 창고, 씨앗 ' + n + '개');
+        el.setAttribute('role', 'img');
+      }
+    });
+
+    document.getElementById('north-name').textContent = '▲ ' + name(C.NORTH) + (vsCpu() ? '' : ' (위 줄)');
+    document.getElementById('south-name').textContent = '▼ ' + name(C.SOUTH) + (vsCpu() ? '' : ' (아래 줄)');
+    document.getElementById('north-score').textContent = '창고 ' + game.board[C.storeOf(C.NORTH)];
+    document.getElementById('south-score').textContent = '창고 ' + game.board[C.storeOf(C.SOUTH)];
+
+    var s = game.board[C.storeOf(C.SOUTH)], nn = game.board[C.storeOf(C.NORTH)];
+    if (game.status === 'over') {
+      var score = ' (' + s + ' : ' + nn + ')';
+      if (game.winner === null) statusEl.textContent = '무승부입니다.' + score;
+      else if (vsCpu()) statusEl.textContent = (game.winner === C.SOUTH ? '내가 이겼습니다!' : '컴퓨터가 이겼습니다.') + score;
+      else statusEl.textContent = name(game.winner) + ' 승리!' + score;
+    } else if (isCpuTurn()) {
+      statusEl.textContent = '컴퓨터 차례… 생각 중';
+    } else {
+      statusEl.textContent = vsCpu() ? '내 차례입니다. 아래 줄 구덩이를 고르세요.' : name(game.turn) + ' 차례';
+    }
+    noteEl.textContent = describeLast();
+  }
+
+  function newGame() {
+    gameId += 1;
+    var first = vsCpu() && orderEl.value === 'second' ? C.NORTH : C.SOUTH;
+    game = C.createGame(undefined, first);
+    cpuOnly.forEach(function (el) { el.hidden = !vsCpu(); });
+    render();
+    cpuMove();
+  }
+
+  document.getElementById('restart').addEventListener('click', newGame);
+  [modeEl, orderEl, levelEl].forEach(function (el) { el.addEventListener('change', newGame); });
+
+  build();
+  newGame();
+})();
+</script>
+</body>
+</html>
